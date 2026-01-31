@@ -3,77 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <title>Planilha de Inspeção</title>
+
   <style>
     body {
       font-family: Arial, sans-serif;
       padding: 10px;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
-    }
-    tr {
-    background-color: #ffffff;
+      margin-top: 10px;
     }
 
-
-    tr:nth-child(even) {
-    background-color: #f2f2f2;
-    }
     th, td {
-      border: 1px solid #131313;
-      padding: 5px;
+      border: 1px solid #999;
+      padding: 8px;
       text-align: center;
-      background-repeat: repeat-y, ;
     }
+
     textarea {
       width: 95%;
       height: 60px;
+      margin-top: 5px;
     }
+
     .status {
       width: 80px;
-      height:30px;
+      height: 30px;
       border: none;
       color: white;
       font-weight: bold;
       cursor: pointer;
+      border-radius: 4px;
     }
-    .verde {
-      background-color: rgb(255, 0, 0);
-      border: solid;
-      border-color:black;
-    
-    
+
+    .verde { background-color: green; }
+    .vermelho { background-color: red; }
+
+    .inspecao {
+      background-color: #e0e0e0;
+      border: 1px solid #ccc;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
     }
-    .vermelho {
-      background-color: rgb(30, 255, 0);
-      border: solid;
-      border-color:black;
+
+    .amarelo {
+      background-color: #ffd700;
+      font-weight: bold;
     }
+
     .obs {
       display: none;
     }
-    button{
-        background-color: transparent;
-        border: soloid;
-        border-color: black;
-        
-    }
-    #aaa{
-        background-color: #f2f2f2;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin: 20px;
-    }
   </style>
 </head>
+
 <body>
 
 <h2>📋 Planilha de Inspeção</h2>
-<button onclick="novaLinha()" id="aaa">➕ Nova Linha
-</button>
+
+<button onclick="novaLinha()">➕ Nova Linha</button>
+<button onclick="voltar()">↩️ Desfazer</button>
 
 <table>
   <thead>
@@ -88,56 +80,95 @@
 
 <script>
   let dados = JSON.parse(localStorage.getItem("planilha")) || [];
+  let historico = [];
+
   const tabela = document.getElementById("tabela");
 
   function salvar() {
     localStorage.setItem("planilha", JSON.stringify(dados));
   }
 
+  function salvarHistorico() {
+    // Salva o estado atual antes de uma mudança importante
+    historico.push(JSON.stringify(dados));
+    if (historico.length > 30) historico.shift();
+  }
+
+  function voltar() {
+    if (historico.length > 0) {
+      dados = JSON.parse(historico.pop());
+      salvar();
+      renderizar();
+    } else {
+      alert("Nada para desfazer.");
+    }
+  }
+
   function renderizar() {
     tabela.innerHTML = "";
+
     dados.forEach((linha, i) => {
       const tr = document.createElement("tr");
 
-      // Coluna Nome
+      // --- Coluna Nome ---
       const tdNome = document.createElement("td");
       const inputNome = document.createElement("input");
       inputNome.value = linha.nome;
+      
+      // Salva no histórico apenas quando o usuário começa a editar
+      inputNome.onfocus = () => salvarHistorico();
+      
       inputNome.oninput = () => {
         dados[i].nome = inputNome.value;
         salvar();
       };
       tdNome.appendChild(inputNome);
 
-      // Coluna Inspeção
+      // --- Coluna Inspeção ---
       const tdInspecao = document.createElement("td");
       const btnInspecao = document.createElement("button");
       btnInspecao.textContent = "Inspeção";
-      btnInspecao.onclick = () => {
-        obs.style.display = obs.style.display === "none" ? "block" : "none";
-      };
-
+      btnInspecao.className = "inspecao" + (linha.obs ? " amarelo" : "");
+      
       const obs = document.createElement("textarea");
       obs.className = "obs";
       obs.value = linha.obs;
+      
+      // Mantém aberto se já tiver texto
+      if (linha.obs) obs.style.display = "block";
+
+      btnInspecao.onclick = () => {
+        const estaAberto = obs.style.display === "block";
+        obs.style.display = estaAberto ? "none" : "block";
+      };
+
+      obs.onfocus = () => salvarHistorico();
+
       obs.oninput = () => {
         dados[i].obs = obs.value;
         salvar();
+        // Atualiza a cor do botão sem renderizar a tabela inteira
+        if (obs.value.trim() !== "") {
+          btnInspecao.classList.add("amarelo");
+        } else {
+          btnInspecao.classList.remove("amarelo");
+        }
       };
 
       tdInspecao.appendChild(btnInspecao);
-      tdInspecao.appendChild(document.createElement("br"));
       tdInspecao.appendChild(obs);
 
-      // Coluna Status
+      // --- Coluna Status ---
       const tdStatus = document.createElement("td");
       const btnStatus = document.createElement("button");
       btnStatus.className = "status " + linha.status;
       btnStatus.textContent = linha.status === "verde" ? "" : "";
+      
       btnStatus.onclick = () => {
+        salvarHistorico();
         dados[i].status = linha.status === "verde" ? "vermelho" : "verde";
         salvar();
-        renderizar();
+        renderizar(); // Aqui pode renderizar pois o clique é uma ação única
       };
       tdStatus.appendChild(btnStatus);
 
@@ -149,11 +180,13 @@
   }
 
   function novaLinha() {
+    salvarHistorico();
     dados.push({ nome: "", obs: "", status: "verde" });
     salvar();
     renderizar();
   }
 
+  // Inicialização
   renderizar();
 </script>
 
